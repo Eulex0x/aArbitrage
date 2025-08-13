@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Spread Monitor</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: 'Inter', sans-serif;
+      background: #f7f9fc;
+      color: #1c1e21;
+    }
+
+    header {
+      text-align: center;
+      padding: 30px 20px 10px;
+    }
+
+    header h1 {
+      font-size: 2rem;
+      font-weight: 700;
+      color: #222;
+      margin-bottom: 10px;
+    }
+
+    .controls {
+      max-width: 1200px;
+      margin: 0 auto 30px;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 15px;
+      padding: 0 20px;
+    }
+
+    .controls input,
+    .controls select {
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      font-size: 14px;
+      transition: border 0.2s;
+    }
+
+    .controls input:focus,
+    .controls select:focus {
+      border-color: #3498db;
+      box-shadow: 0 0 0 3px #3498db33;
+      outline: none;
+    }
+
+    table {
+      width: 100%;
+      max-width: 1200px;
+      margin: 0 auto;
+      border-collapse: collapse;
+      background: #fff;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+    }
+
+    thead {
+      background: #3498db;
+      color: #fff;
+      text-align: left;
+    }
+
+    thead th {
+      padding: 14px 12px;
+      font-weight: 600;
+      font-size: 14px;
+      cursor: pointer;
+      position: relative;
+    }
+
+    thead th::after {
+      content: '\25BC\25B2';
+      font-size: 10px;
+      position: absolute;
+      right: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      opacity: 0.4;
+    }
+
+    tbody td {
+      padding: 12px 12px;
+      font-size: 14px;
+      border-bottom: 1px solid #f0f0f0;
+      text-align: right;
+    }
+
+    tbody td:first-child,
+    thead th:first-child {
+      text-align: left;
+    }
+
+    tbody tr:nth-child(even) {
+      background: #f9fcff;
+    }
+
+    tbody tr:hover {
+      background-color: #ecf7ff;
+      transition: background 0.2s;
+    }
+
+    .up {
+      color: #2ecc71;
+      font-weight: 600;
+    }
+
+    .down {
+      color: #e74c3c;
+      font-weight: 600;
+    }
+
+    @media (max-width: 768px) {
+      header h1 {
+        font-size: 1.4rem;
+      }
+
+      table,
+      .controls {
+        width: 100%;
+        padding: 0 10px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Exchange Spread Monitor</h1>
+  </header>
+
+  <div class="controls">
+    <input id="search" placeholder="Search symbol (e.g., BTCUSDT)" />
+    <input id="minSpread" type="number" step="0.01" placeholder="Min Spread %" />
+    <input id="maxSpread" type="number" step="0.01" placeholder="Max Spread %" />
+    <input id="allowedSymbols" placeholder="Allowed symbols (comma-separated)" />
+    <input id="excludedSymbols" placeholder="Exclude symbols (comma-separated)" />
+    <select id="refreshRate">
+      <option value="0">No Auto Refresh</option>
+      <option value="1">Instant</option>
+      <option value="1000">1 sec</option>
+      <option value="5000" selected>5 sec</option>
+      <option value="10000">10 sec</option>
+    </select>
+    <select id="statsWindow">
+      <option value="1h">Last 1 hour</option>
+      <option value="4h">Last 4 hours</option>
+      <option value="12h">Last 12 hours</option>
+      <option value="24h" selected>Last 24 hours</option>
+    </select>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th data-key="symbol" class="sortable">Symbol</th>
+        <th data-key="bitunix" class="sortable">Bitunix</th>
+        <th data-key="bybit" class="sortable">Bybit</th>
+        <th data-key="mexc" class="sortable">MEXC</th>
+        <th data-key="binance" class="sortable">Binance</th>
+        <th data-key="coinex" class="sortable">CoinEx</th>
+        <th data-key="gate" class="sortable">Gate</th>
+        <th data-key="spread" class="sortable">Spread</th>
+        <th data-key="time" class="sortable">Live (s)</th>
+        <th data-key="longEx" class="sortable">Long</th>
+        <th data-key="shortEx" class="sortable">Short</th>
+        <th data-key="bybitBidAskSpread" class="sortable">Bybit Bid/Ask Spread</th>
+        <th data-key="gateBidAskSpread" class="sortable">Gate Bid/Ask Spread</th>
+        <th data-key="volume" class="sortable">Volume</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <script>
+  let data = [], key = 'spread', dir = 'desc', intervalId;
+  const MAX_ROWS = 50; // <-- hard cap
+  const FEE_PCT = 0.1; // still used for "real" spread display (optional)
+  const filterIds = ['search', 'minSpread', 'maxSpread', 'allowedSymbols', 'excludedSymbols', 'refreshRate', 'statsWindow'];
+
+  function saveFilters() {
+    filterIds.forEach(id => {
+      const el = document.getElementById(id);
+      if (el) localStorage.setItem(`filter_${id}`, el.value);
+    });
+  }
+
+  function loadFilters() {
+    filterIds.forEach(id => {
+      const val = localStorage.getItem(`filter_${id}`);
+      if (val !== null) document.getElementById(id).value = val;
+    });
+  }
+
+  let statsData = {};
+  let statsWindow = '24h';
+
+  async function loadStats() {
+    try {
+      const res = await fetch('/arbitrage-stats');
+      statsData = await res.json();
+      render();
+    } catch (err) {
+      console.error('Failed to load arbitrage stats:', err);
+    }
+  }
+
+  async function load() {
+    try {
+      const res = await fetch('/prices');
+      const prices = await res.json();
+
+      // Merge stats into price data
+      const statsRows = (statsData[statsWindow] || []);
+      const statsMap = {};
+      statsRows.forEach(s => {
+        statsMap[s.symbol] = s;
+      });
+
+      data = Object.entries(prices).map(([symbol, obj]) => {
+        const exchanges = obj.exchanges || {};
+        const entries = ['bitunix', 'bybit', 'mexc', 'binance', 'coinex' , 'gate']
+          .map(ex => ({ ex, price: exchanges[ex] }))
+          .filter(e => typeof e.price === 'number');
+
+        let gateBidAskSpread = '-';
+        if (typeof obj.bidGate === 'number' && typeof obj.askGate === 'number' && obj.bidGate > 0) {
+          gateBidAskSpread = (((obj.askGate - obj.bidGate) / obj.bidGate) * 100).toFixed(4);
+        }
+        let bybitBidAskSpread = '-';
+        if (typeof obj.bidBybit === 'number' && typeof obj.askBybit === 'number' && obj.bidBybit > 0) {
+          bybitBidAskSpread = (((obj.askBybit - obj.bidBybit) / obj.bidBybit) * 100).toFixed(4);
+        }
+        if (entries.length < 1) return null;
+
+        let spread = 0;
+        let longEx = '-';
+        let shortEx = '-';
+
+        if (entries.length >= 2) {
+          const sorted = entries.slice().sort((a, b) => a.price - b.price);
+          const minP = sorted[0].price;
+          const maxP = sorted[sorted.length - 1].price;
+          spread = ((maxP - minP) / minP) * 100;
+          longEx = sorted[0].ex;
+          shortEx = sorted[sorted.length - 1].ex;
+        }
+
+        const stats = statsMap[symbol] || {};
+
+        const rawVolume = obj.VolumeB || obj.VolumeBybit || obj.VolumeMexc || obj.VolumeBinance || 0;
+        let volume = '-';
+        let volumeNum = 0;
+        if (typeof rawVolume === 'number' && rawVolume > 0) {
+          volumeNum = rawVolume;
+          if (rawVolume >= 1e9) {
+            volume = (rawVolume / 1e9).toFixed(rawVolume >= 10e9 ? 0 : 1) + 'B';
+          } else if (rawVolume >= 1e6) {
+            volume = (rawVolume / 1e6).toFixed(rawVolume >= 10e6 ? 0 : 1) + 'M';
+          } else if (rawVolume >= 1e3) {
+            volume = (rawVolume / 1e3).toFixed(0) + 'K';
+          } else {
+            volume = rawVolume.toString();
+          }
+        }
+
+        return {
+          symbol,
+          bitunix: exchanges.bitunix !== undefined ? exchanges.bitunix : '-',
+          bybit: exchanges.bybit !== undefined ? exchanges.bybit : '-',
+          mexc: exchanges.mexc !== undefined ? exchanges.mexc : '-',
+          binance: exchanges.binance !== undefined ? exchanges.binance : '-',
+          coinex: exchanges.coinex !== undefined ? exchanges.coinex : '-',
+          gate: exchanges.gate !== undefined ? exchanges.gate : '-',
+          spread: spread.toFixed(4),
+          time: (obj.opportunity?.lastSeen && obj.opportunity?.lifetimeStart && obj.opportunity.lastSeen > obj.opportunity.lifetimeStart)
+            ? Math.floor((obj.opportunity.lastSeen - obj.opportunity.lifetimeStart) / 1000)
+            : 0,
+          longEx,
+          shortEx,
+          totalTime: stats.totalTime || 0,
+          avgSpread: stats.avgSpread || 0,
+          opportunityCount: stats.count || 0,
+          volume,
+          volumeNum,// for sorting
+          bybitBidAskSpread,
+          gateBidAskSpread
+        };
+      })
+      .filter(Boolean);
+
+      render();
+    } catch (err) {
+      console.error('Failed to load prices:', err);
+    }
+  }
+
+  function render() {
+    const q = document.getElementById('search').value.toUpperCase();
+    const minSpread = parseFloat(document.getElementById('minSpread').value);
+    const maxSpread = parseFloat(document.getElementById('maxSpread').value);
+    const allowedInput = document.getElementById('allowedSymbols').value;
+    const excludedInput = document.getElementById('excludedSymbols').value;
+
+    const allowedSymbols = allowedInput ? allowedInput.split(',').map(s => s.trim().toUpperCase()).filter(Boolean) : null;
+    const excludedSymbols = excludedInput ? excludedInput.split(',').map(s => s.trim().toUpperCase()).filter(Boolean) : [];
+
+    let list = data.filter(r => {
+      const symbolMatch = r.symbol.includes(q);
+      const spreadValue = Math.abs(parseFloat(r.spread));
+      const spreadMatch =
+        (isNaN(minSpread) || spreadValue >= minSpread) &&
+        (isNaN(maxSpread) || spreadValue <= maxSpread);
+      const allowedMatch = !allowedSymbols || allowedSymbols.includes(r.symbol);
+      const excludedMatch = !excludedSymbols.includes(r.symbol);
+      return symbolMatch && spreadMatch && allowedMatch && excludedMatch;
+    });
+
+    list.sort((a, b) => {
+      let av = a[key], bv = b[key];
+      if (['spread', 'time', 'avgSpread', 'opportunityCount','bybitBidAskSpread','gateBitAskSpread'].includes(key)) {
+        av = parseFloat(av);
+        bv = parseFloat(bv);
+      }
+      if (key === 'volume') {
+        av = a.volumeNum || 0;
+        bv = b.volumeNum || 0;
+      }
+      return (av < bv ? -1 : av > bv ? 1 : 0) * (dir === 'asc' ? 1 : -1);
+    });
+
+    list = list.slice(0, MAX_ROWS);
+
+    const tbody = document.querySelector('tbody');
+    tbody.innerHTML = '';
+
+    list.forEach(r => {
+      const spreadVal = parseFloat(r.spread);
+      const realSpread = Math.max(0, spreadVal - FEE_PCT);
+      const spreadClass = realSpread >= 0 ? 'up' : 'down';
+
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${r.symbol}</td>
+        <td>${r.bitunix}</td>
+        <td>${r.bybit}</td>
+        <td>${r.mexc}</td>
+        <td>${r.binance}</td>
+        <td>${r.coinex}</td>
+        <td>${r.gate}</td>
+        <td class="${spreadClass}">${isNaN(realSpread) ? '-' : realSpread.toFixed(4)}%</td>
+        <td>${r.time > 0 ? r.time : '-'}</td>
+        <td>${r.longEx}</td>
+        <td>${r.shortEx}</td>
+        <td>${r.bybitBidAskSpread !== '-' ? r.bybitBidAskSpread + '%' : '-'}</td>
+        <td>${r.gateBidAskSpread !== '-' ? r.gateBidAskSpread + '%' : '-'}</td>
+        <td>${r.volume}</td>
+      `;
+      tbody.appendChild(tr);
+    });
+  }
+
+  // Sort handlers
+  document.querySelectorAll('.sortable').forEach(h => {
+    h.addEventListener('click', () => {
+      const k = h.getAttribute('data-key');
+      if (key === k) {
+        dir = dir === 'asc' ? 'desc' : 'asc';
+      } else {
+        key = k;
+        dir = 'desc'; // start descending for new column
+      }
+      render();
+    });
+  });
+
+  // Filter handlers
+  document.querySelectorAll('#search, #minSpread, #maxSpread, #allowedSymbols, #excludedSymbols').forEach(input => {
+    input.addEventListener('input', () => {
+      saveFilters();
+      render();
+    });
+  });
+
+  // Refresh rate
+  document.getElementById('refreshRate').addEventListener('change', () => {
+    saveFilters();
+    if (intervalId) clearInterval(intervalId);
+    const ms = parseInt(document.getElementById('refreshRate').value);
+    if (ms > 0) intervalId = setInterval(load, ms);
+  });
+
+  // Stats window
+  document.getElementById('statsWindow').addEventListener('change', (e) => {
+    statsWindow = e.target.value;
+    saveFilters();
+    load();
+  });
+
+  // Initial load
+  loadFilters();
+  loadStats().then(load);
+  intervalId = setInterval(load, parseInt(document.getElementById('refreshRate').value) || 5000);
+  setInterval(loadStats, 60000);
+  </script>
+</body>
+</html>
