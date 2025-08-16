@@ -10,13 +10,13 @@ const { connectCoinex } = require('./src/exchanges/coinex.js');
 const { connectGate } = require('./src/exchanges/gate.js');
 
 async function start() {
-  await syncOpenPositions();
+  //await syncOpenPositions();
   let syncInProgress = false;
   setInterval(async () => {
     if (syncInProgress) return;
     syncInProgress = true;
     try {
-      await syncOpenPositions();
+      //await syncOpenPositions();
     } catch (err) {
       console.error('❌ Sync failed:', err);
     } finally {
