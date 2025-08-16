@@ -165,7 +165,10 @@ async function scanForArbitrage() {
         }
 
         // Skip actual trading if spread < threshold
-        if (!isAboveThreshold) continue;
+        if (!isAboveThreshold) {
+          data.opportunity.spreadCounter = 0; // <-- Reset counter if not above threshold
+          continue;
+        }
 
         data.opportunity.spreadCounter += 1;
         if (data.opportunity.spreadCounter < config.confirmationCount) continue;
@@ -175,8 +178,8 @@ async function scanForArbitrage() {
         if (trade.isOpen || state.pendingTrades.has(symbol)) continue;
         if (forbiddenExchanges.includes(longEx) || forbiddenExchanges.includes(shortEx)) continue;
 
-        //const lifetimeSec = Math.floor(lifetime / 1000);
-        //if (lifetime < 5000) continue;
+        const lifetimeSec = Math.floor(lifetime / 1000);
+        if (lifetime < 5000) continue;
 
         sendTelegramMessage(
           `🚀 OPEN ${symbol}\n` +
