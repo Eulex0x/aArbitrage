@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Layout Test - Spread Monitor</title>
+  <style>
+    :root {
+      --tabs-height: 48px;
+      --header-height: 85px;
+      --tabs-z: 1000;
+      --header-z: 900;
+      --thead-z: 800;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    
+    body {
+      font-family: 'Inter', sans-serif;
+      background: #0f172a;
+      color: #e2e8f0;
+    }
+
+    .tabs {
+      max-width: 1400px;
+      margin: 0 auto;
+      display: flex;
+      gap: 8px;
+      padding: 12px 20px;
+      position: sticky;
+      top: 0;
+      z-index: var(--tabs-z);
+      background: #0f172a;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+    }
+
+    .tab-btn {
+      background: #1e293b;
+      border: 1px solid #334155;
+      color: #e2e8f0;
+      padding: 8px 12px;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+
+    .tab-btn.active {
+      background: #3b82f6;
+      border-color: #2563eb;
+      color: #fff;
+    }
+
+    header {
+      text-align: center;
+      padding: 20px 20px 15px;
+      background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+      position: sticky;
+      top: var(--tabs-height);
+      z-index: var(--header-z);
+    }
+
+    header h1 {
+      font-size: 1.75rem;
+      font-weight: 700;
+      color: #f1f5f9;
+      margin: 0;
+    }
+
+    .controls {
+      max-width: 1400px;
+      margin: 20px auto;
+      padding: 0 20px;
+      color: #94a3b8;
+    }
+
+    .table-container {
+      max-width: 1400px;
+      margin: 0 auto 30px;
+      padding: 0 20px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: #1e293b;
+      border-radius: 12px;
+      overflow: hidden;
+    }
+
+    thead {
+      background: linear-gradient(135deg, #2563eb 0%, #3b82f6 100%);
+      color: #fff;
+      text-align: left;
+      position: sticky;
+      top: calc(var(--tabs-height) + var(--header-height));
+      z-index: var(--thead-z);
+    }
+
+    thead th {
+      padding: 16px 14px;
+      font-weight: 600;
+      font-size: 13px;
+    }
+
+    tbody td {
+      padding: 14px;
+      font-size: 13px;
+      border-bottom: 1px solid #334155;
+    }
+
+    .content {
+      min-height: 2000px;
+      padding: 20px;
+    }
+
+    .info-box {
+      background: #1e293b;
+      padding: 20px;
+      margin: 20px;
+      border-radius: 8px;
+      border: 1px solid #334155;
+    }
+  </style>
+</head>
+<body>
+  <!-- TABS AT THE TOP -->
+  <div class="tabs">
+    <button class="tab-btn active">Spreads</button>
+    <button class="tab-btn">Funding</button>
+  </div>
+
+  <!-- HEADER BELOW TABS -->
+  <header>
+    <h1>Exchange Spread Monitor</h1>
+  </header>
+
+  <!-- CONTROLS -->
+  <div class="controls">
+    <p>Filter controls would go here...</p>
+  </div>
+
+  <!-- TABLE WITH STICKY HEADER -->
+  <div class="table-container">
+    <table>
+      <thead>
+        <tr>
+          <th>Symbol</th>
+          <th>Long</th>
+          <th>Short</th>
+          <th>Net Spread %</th>
+          <th>Live (s)</th>
+          <th>Volume</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>BTCUSDT</td><td>Bybit @ 50000</td><td>Binance @ 50100</td><td>0.20%</td><td>120</td><td>1.2B</td></tr>
+        <tr><td>ETHUSDT</td><td>Bybit @ 3000</td><td>Binance @ 3010</td><td>0.33%</td><td>90</td><td>800M</td></tr>
+        <tr><td>SOLUSDT</td><td>Bybit @ 150</td><td>Binance @ 151</td><td>0.67%</td><td>60</td><td>500M</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- LONG CONTENT TO TEST SCROLLING -->
+  <div class="content">
+    <div class="info-box">
+      <h2>✅ Layout Verification</h2>
+      <p><strong>Expected order from top to bottom:</strong></p>
+      <ol>
+        <li>✅ TABS (Spreads/Funding) - Sticky at top (z-index: 1000)</li>
+        <li>✅ HEADER (Exchange Spread Monitor) - Sticky below tabs (z-index: 900)</li>
+        <li>✅ CONTROLS (filters)</li>
+        <li>✅ TABLE with column names (Symbol, Long, Short, etc.) - Header sticky below header (z-index: 800)</li>
+      </ol>
+      <p><strong>When you scroll down:</strong></p>
+      <ul>
+        <li>Tabs should remain at the very top</li>
+        <li>Header should remain visible below the tabs</li>
+        <li>Table headers (Symbol, Long, Short, etc.) should remain visible below the header</li>
+        <li>No overlapping should occur</li>
+      </ul>
+    </div>
+    
+    <div class="info-box">
+      <h2>Scroll down to test sticky behavior ⬇️</h2>
+      <p>This content is intentionally long to test the sticky positioning...</p>
+    </div>
+
+    <!-- Add more rows to make scrolling necessary -->
+    <div style="height: 1500px; display: flex; align-items: center; justify-content: center; color: #64748b;">
+      <p>← Scroll to see sticky headers in action →</p>
+    </div>
+  </div>
+</body>
+</html>

@@ -109,22 +109,28 @@ async function scanForArbitrage() {
   state.tradeInProgress = true;
 
   try {
+    // Check if we've reached max open positions
     const openCount = Array.from(state.openTrades.values()).filter(t => t?.isOpen).length;
     if (openCount >= config.maxPositions) return;
 
+    // Generate all possible exchange pairs for arbitrage
     const pairs = getExchangePairs(config.enabledExchanges);
 
+    // Iterate through all symbols with price data
     for (const [symbol, data] of state.prices.entries()) {
       const now = Date.now();
 
+      // Initialize trade tracking if not exists
       if (!state.openTrades.has(symbol)) {
         state.openTrades.set(symbol, { lastAction: 0 });
       }
 
+      // Check cooldown period to prevent spam
       const trade = state.openTrades.get(symbol);
       const cooldownPassed = now - (trade.lastAction || 0) >= config.cooldown;
       if (!cooldownPassed) continue;
 
+      // Initialize opportunity tracking object
       if (!data.opportunity) {
         data.opportunity = {
           lifetimeStart: 0,
@@ -134,11 +140,13 @@ async function scanForArbitrage() {
         };
       }
 
+      // Check all exchange pairs for arbitrage opportunities
       for (const [ex1, ex2] of pairs) {
         const p1 = data.exchanges?.[ex1];
         const p2 = data.exchanges?.[ex2];
         if (typeof p1 !== 'number' || typeof p2 !== 'number') continue;
 
+        // Calculate spread percentage after fees
         const rawSpread = Math.abs((p2 - p1) / ((p2 + p1) / 2)) * 100;
         const spread = Math.max(0, rawSpread - config.fee);
 
@@ -174,9 +182,28 @@ async function scanForArbitrage() {
         // Skip if trade already open or forbidden
         if (trade.isOpen || state.pendingTrades.has(symbol)) continue;
         if (forbiddenExchanges.includes(longEx) || forbiddenExchanges.includes(shortEx)) continue;
+        
+        // Skip if symbol is dead on either exchange
+        const deadLongEx = config.deadSymbolsPerExchange[longEx] || [];
+        const deadShortEx = config.deadSymbolsPerExchange[shortEx] || [];
+        if (deadLongEx.includes(symbol) || deadShortEx.includes(symbol)) continue;
 
-        //const lifetimeSec = Math.floor(lifetime / 1000);
-        //if (lifetime < 5000) continue;
+        const lifetimeSec = Math.floor(lifetime / 1000);
+        
+        // Skip low-quality opportunities based on lifetime:
+        // - Always skip if spread < minSpreadForLifetime and lifetime > minLifetimeSeconds (persistent low spreads)
+        // - For new opportunities (< minLifetimeSeconds), require at least 0.5% spread to avoid noise
+        if (lifetimeSec > config.minLifetimeSeconds) {
+          // For older opportunities, use minSpreadForLifetime threshold (2%)
+          if (spread < config.minSpreadForLifetime) {
+            continue;
+          }
+        } else {
+          // For new opportunities, require minimum 0.5% spread to reduce noise
+          if (spread < 0.5) {
+            continue;
+          }
+        }
 
         sendTelegramMessage(
           `🚀 OPEN ${symbol}\n` +
@@ -190,7 +217,10 @@ async function scanForArbitrage() {
         const updatedOpenCount = Array.from(state.openTrades.values()).filter(t => t?.isOpen).length;
         if (updatedOpenCount >= config.maxPositions) return;
 
-        // await openTrade(symbol, longEx, shortEx, longP, shortP);
+        // Only execute trade if autoTrade is enabled
+        if (config.autoTrade) {
+          await openTrade(symbol, longEx, shortEx, longP, shortP);
+        }
         return; // Stop loop after one trade
       }
     }
